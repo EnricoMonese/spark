@@ -24,9 +24,11 @@ import android.database.DataSetObserver;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.CornerPathEffect;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
+import android.graphics.Shader;
 import android.os.Build;
 import android.os.Handler;
 import android.support.annotation.ColorInt;
@@ -105,6 +107,8 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
     private final Path sparkPath = new Path();
     private final Path baseLinePath = new Path();
     private final Path scrubLinePath = new Path();
+    private final Path fadeLineLeftPath = new Path();
+    private final Path fadeLineRightPath = new Path();
 
     // adapter
     private SparkAdapter adapter;
@@ -116,6 +120,8 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
     private Paint sparkFillPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint baseLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private Paint scrubLinePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Paint fadeLineLeftPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private Paint fadeLineRightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private OnScrubListener scrubListener;
     private ScrubGestureDetector scrubGestureDetector;
     private Animator pathAnimator;
@@ -123,6 +129,8 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
     private float clipAmount = 1f;
     private RectF clippedRect = new RectF();
     public boolean clipOnScrub;
+
+    private float fadeLength;
 
     private List<Float> xPoints;
     private List<Float> yPoints;
@@ -156,6 +164,7 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
         fillColor = a.getColor(R.styleable.SparkView_spark_fillColor, 0);
         lineWidth = a.getDimension(R.styleable.SparkView_spark_lineWidth, 0);
         cornerRadius = a.getDimension(R.styleable.SparkView_spark_cornerRadius, 0);
+        fadeLength = a.getFloat(R.styleable.SparkView_spark_fadeLength, 0);
 
         // for backwards compatibility, set fill type based on spark_fill first, then overwrite if
         // new spark_fillType attribute is set
@@ -197,6 +206,9 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
         scrubLinePaint.setStrokeWidth(scrubLineWidth);
         scrubLinePaint.setColor(scrubLineColor);
         scrubLinePaint.setStrokeCap(Paint.Cap.ROUND);
+
+        fadeLineLeftPaint.set(sparkLinePaint);
+        fadeLineRightPaint.set(sparkLinePaint);
 
         final Handler handler = new Handler();
         final float touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
@@ -286,6 +298,21 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
             float scaledBaseLine = scaleHelper.getY(adapter.getBaseLine());
             baseLinePath.moveTo(0, scaledBaseLine);
             baseLinePath.lineTo(getWidth(), scaledBaseLine);
+        }
+
+        fadeLineLeftPath.reset();
+        fadeLineRightPath.reset();
+        if(fadeLength > 0) {
+            final float firstY = scaleHelper.getY(adapter.getY(0));
+            fadeLineLeftPath.moveTo(0, firstY);
+            fadeLineLeftPath.rLineTo(fadeLength, 0);
+
+            final float lastY = scaleHelper.getY(adapter.getY(adapter.getCount() - 1));
+            fadeLineRightPath.moveTo(contentRect.right, lastY);
+            fadeLineRightPath.rLineTo(fadeLength, 0);
+
+            fadeLineLeftPaint.setShader(new LinearGradient(0,0, fadeLength, 0, Color.TRANSPARENT, lineColor, Shader.TileMode.CLAMP));
+            fadeLineRightPaint.setShader(new LinearGradient(contentRect.right,0, contentRect.right + fadeLength, 0, lineColor, Color.TRANSPARENT, Shader.TileMode.CLAMP));
         }
 
         renderPath.reset();
@@ -416,6 +443,11 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
             canvas.restore();
         }
         canvas.drawPath(scrubLinePath, scrubLinePaint);
+
+        if(fadeLength > 0) {
+            canvas.drawPath(fadeLineLeftPath, fadeLineLeftPaint);
+            canvas.drawPath(fadeLineRightPath, fadeLineRightPaint);
+        }
     }
 
     /**
@@ -666,6 +698,15 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
     }
 
     /**
+     * Set side fading amount, set 0 to disable fading
+     * @param length of faded line
+     */
+    public void setFadeLength(float length) {
+        this.fadeLength = length;
+        invalidate();
+    }
+
+    /**
      * Get the color of the scrub line
      */
     @ColorInt public int getScrubLineColor() {
@@ -877,9 +918,9 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
         if (contentRect == null) return;
 
         contentRect.set(
-                getPaddingStart(),
+                getPaddingStart() + fadeLength,
                 getPaddingTop(),
-                getWidth() - getPaddingEnd(),
+                getWidth() - getPaddingEnd() - fadeLength,
                 getHeight() - getPaddingBottom()
         );
 
