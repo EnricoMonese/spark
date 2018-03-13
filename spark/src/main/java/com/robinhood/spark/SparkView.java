@@ -313,7 +313,7 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
             fadeLineRightPath.rLineTo(fadeLength, 0);
 
             fadeLineLeftPaint.setShader(new LinearGradient(0,0, fadeLength, 0, fadeColor, lineColor, Shader.TileMode.CLAMP));
-            fadeLineRightPaint.setShader(new LinearGradient(contentRect.right,0, contentRect.right + fadeLength, 0, lineColor, fadeColor, Shader.TileMode.CLAMP));
+            fadeLineRightPaint.setShader(new LinearGradient(contentRect.right,0, contentRect.right + fadeLength, 0, clipAmount < 1 ? Color.GRAY : lineColor, fadeColor, Shader.TileMode.CLAMP));
         }
 
         renderPath.reset();
@@ -405,12 +405,12 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
     private float resolveBoundedScrubLine(float x) {
         float scrubLineOffset = scrubLineWidth / 2;
 
-        float leftBound = getPaddingStart() + scrubLineOffset;
+        float leftBound = getPaddingStart() + scrubLineOffset + fadeLength;
         if (x < leftBound) {
             return leftBound;
         }
 
-        float rightBound = getWidth() - getPaddingEnd() - scrubLineOffset;
+        float rightBound = getWidth() - getPaddingEnd() - scrubLineOffset - fadeLength;
         if (x > rightBound) {
             return rightBound;
         }
@@ -457,7 +457,8 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
      */
     public void setClipAmount(float amount) {
         clipAmount = Math.max(0f, Math.min(1f, amount));
-        this.clippedRect.right = contentRect.right * clipAmount;
+        this.clippedRect.right = (contentRect.width() * clipAmount) + fadeLength;
+        fadeLineRightPaint.setShader(new LinearGradient(contentRect.right,0, contentRect.right + fadeLength, 0, clipAmount < 1 ? Color.GRAY : lineColor, fadeColor, Shader.TileMode.CLAMP));
         invalidate();
     }
 
@@ -973,7 +974,7 @@ public class SparkView extends View implements ScrubGestureDetector.ScrubListene
 
         setScrubLine(x);
         if(clipOnScrub) {
-            setClipAmount(x / contentRect.right);
+            setClipAmount((x - contentRect.left) / contentRect.width());
         }
     }
 
